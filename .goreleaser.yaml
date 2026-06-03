@@ -1,0 +1,48 @@
+version: 2
+
+project_name: siesta
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: siesta
+    main: ./cmd/siesta
+    binary: siesta
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/rahadiangg/siesta/internal/runner/cli.Version={{ .Version }}
+
+archives:
+  - id: siesta
+    formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: rahadiangg
+    name: siesta

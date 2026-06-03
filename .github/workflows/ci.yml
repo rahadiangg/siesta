@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # The huaweicloud-go-runtime mirror is not in the Go checksum DB.
+  GOPRIVATE: github.com/rahadiangg/*
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./... -race -cover
+      - name: Build
+        run: go build ./...
