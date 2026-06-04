@@ -23,11 +23,12 @@ builds:
     ldflags:
       - -s -w -X github.com/rahadiangg/siesta/internal/runner/cli.Version={{ .Version }}
 
-  # FunctionGraph binary: same code, but named "bootstrap" (FG convention),
-  # Linux only. amd64 is the common FG runtime; arm64 for Kunpeng runtimes.
+  # FunctionGraph binary: same code, but named "handler" to match the Go1.x
+  # console Handler default. Linux only; amd64 is the common FG runtime, arm64
+  # for Kunpeng runtimes.
   - id: fg
     main: ./cmd/siesta
-    binary: bootstrap
+    binary: handler
     env:
       - CGO_ENABLED=0
     goos:

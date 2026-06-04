@@ -108,20 +108,27 @@ Siesta runs once and exits, so point any scheduler at it.
 0 16 * * *  siesta --cluster <id> --nodepool prod --count 0   # 23:00 UTC+7
 ```
 
-**Huawei FunctionGraph** (runs the same binary as a timer-triggered function):
+**Huawei FunctionGraph** (runs the same code as a timer-triggered function):
 
 Grab the ready-made `siesta_<version>_functiongraph_amd64.zip` from the
 [releases page](https://github.com/rahadiangg/siesta/releases) (use `arm64` for
 Kunpeng runtimes), or build it yourself:
 
 ```bash
-make package-fg          # builds function.zip (a Linux bootstrap binary)
+make package-fg          # builds function.zip containing a Linux `handler` binary
 ```
 
-Upload the zip (Go runtime), give the function an **agency** with the CCE
-permissions below (no AK/SK needed — siesta reads temporary credentials from the
-agency), set `SIESTA_REGION` / `SIESTA_CLUSTER` / `SIESTA_NODEPOOL`, and add timer
-triggers. Each trigger's **`user_event`** carries the desired state:
+The zip contains a single Linux executable named **`handler`** at the root.
+Create the function with:
+
+- **Runtime**: `Go1.x`
+- **Handler**: `handler` (the console default — it must match the executable name)
+- **Code**: upload the zip
+
+Then give the function an **agency** with the CCE permissions below (no AK/SK
+needed — siesta reads temporary credentials from the agency), set `SIESTA_REGION`
+/ `SIESTA_CLUSTER` / `SIESTA_NODEPOOL`, and add timer triggers. Each trigger's
+**`user_event`** carries the desired state:
 
 ```json
 { "count": 3 }
