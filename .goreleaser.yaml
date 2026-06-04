@@ -7,7 +7,8 @@ before:
     - go mod download
 
 builds:
-  - id: siesta
+  # CLI binary (named "siesta") for laptops/servers.
+  - id: cli
     main: ./cmd/siesta
     binary: siesta
     env:
@@ -22,10 +23,33 @@ builds:
     ldflags:
       - -s -w -X github.com/rahadiangg/siesta/internal/runner/cli.Version={{ .Version }}
 
+  # FunctionGraph binary: same code, but named "bootstrap" (FG convention),
+  # Linux only. amd64 is the common FG runtime; arm64 for Kunpeng runtimes.
+  - id: fg
+    main: ./cmd/siesta
+    binary: bootstrap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/rahadiangg/siesta/internal/runner/cli.Version={{ .Version }}
+
 archives:
-  - id: siesta
+  # CLI archives, one per OS/arch.
+  - id: cli
+    ids: [cli]
     formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+  # FunctionGraph package: a zip with `bootstrap` at the root, ready to upload.
+  - id: functiongraph
+    ids: [fg]
+    formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_functiongraph_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt
