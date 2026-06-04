@@ -31,27 +31,30 @@ type fakeLogger struct{}
 func (fakeLogger) Logf(string, ...any) {}
 
 // fakeCtx implements fgcontext.RuntimeContext with the credential getters set.
+// sak/ssk/token model the agency "security" credentials; ak/sk model the legacy
+// (deprecated) credentials.
 type fakeCtx struct {
-	ak, sk, projectID, token string
+	ak, sk, projectID string
+	sak, ssk, token   string
 }
 
-func (c fakeCtx) GetRequestID() string                  { return "req-1" }
-func (c fakeCtx) GetRemainingTimeInMilliSeconds() int   { return 1000 }
-func (c fakeCtx) GetAccessKey() string                  { return c.ak }
-func (c fakeCtx) GetSecretKey() string                  { return c.sk }
-func (c fakeCtx) GetSecurityAccessKey() string          { return "" }
-func (c fakeCtx) GetSecuritySecretKey() string          { return "" }
-func (c fakeCtx) GetFunctionName() string               { return "siesta" }
-func (c fakeCtx) GetUserData(string) string             { return "" }
-func (c fakeCtx) GetLogger() fgcommon.RuntimeLogger     { return fakeLogger{} }
-func (c fakeCtx) GetRunningTimeInSeconds() int          { return 0 }
-func (c fakeCtx) GetVersion() string                    { return "latest" }
-func (c fakeCtx) GetMemorySize() int                    { return 128 }
-func (c fakeCtx) GetCPUNumber() int                     { return 1 }
-func (c fakeCtx) GetProjectID() string                  { return c.projectID }
-func (c fakeCtx) GetPackage() string                    { return "default" }
-func (c fakeCtx) GetToken() string                      { return "" }
-func (c fakeCtx) GetSecurityToken() string              { return c.token }
+func (c fakeCtx) GetRequestID() string                { return "req-1" }
+func (c fakeCtx) GetRemainingTimeInMilliSeconds() int { return 1000 }
+func (c fakeCtx) GetAccessKey() string                { return c.ak }
+func (c fakeCtx) GetSecretKey() string                { return c.sk }
+func (c fakeCtx) GetSecurityAccessKey() string        { return c.sak }
+func (c fakeCtx) GetSecuritySecretKey() string        { return c.ssk }
+func (c fakeCtx) GetFunctionName() string             { return "siesta" }
+func (c fakeCtx) GetUserData(string) string           { return "" }
+func (c fakeCtx) GetLogger() fgcommon.RuntimeLogger   { return fakeLogger{} }
+func (c fakeCtx) GetRunningTimeInSeconds() int        { return 0 }
+func (c fakeCtx) GetVersion() string                  { return "latest" }
+func (c fakeCtx) GetMemorySize() int                  { return 128 }
+func (c fakeCtx) GetCPUNumber() int                   { return 1 }
+func (c fakeCtx) GetProjectID() string                { return c.projectID }
+func (c fakeCtx) GetPackage() string                  { return "default" }
+func (c fakeCtx) GetToken() string                    { return "" }
+func (c fakeCtx) GetSecurityToken() string            { return c.token }
 
 func withScaler(t *testing.T, f func(string, scaler.Creds, scaler.Options) (scaler.Scaler, error)) {
 	t.Helper()
@@ -213,7 +216,9 @@ func TestMakeHandler_ErrorReturnsNonNil(t *testing.T) {
 	}
 }
 
-func TestMakeHandler_ExtractsContextCreds(t *testing.T) {
+func TestMakeHandler_ExtractsAgencyCreds(t *testing.T) {
+	// Agency creds: the security triple wins, with its token. Legacy ak/sk are
+	// present but must be ignored (mixing them with the token causes 401s).
 	var gotCreds scaler.Creds
 	withScaler(t, func(_ string, c scaler.Creds, _ scaler.Options) (scaler.Scaler, error) {
 		gotCreds = c
@@ -221,12 +226,23 @@ func TestMakeHandler_ExtractsContextCreds(t *testing.T) {
 	})
 
 	h := makeHandler(baseEnv())
-	_, err := h(timerPayload(`{"count":1}`), fakeCtx{ak: "ctx-ak", sk: "ctx-sk", projectID: "ctx-proj", token: "ctx-tok"})
+	_, err := h(timerPayload(`{"count":1}`), fakeCtx{
+		ak: "legacy-ak", sk: "legacy-sk", projectID: "ctx-proj",
+		sak: "sec-ak", ssk: "sec-sk", token: "sec-tok",
+	})
 	if err != nil {
 		t.Fatalf("handler error: %v", err)
 	}
-	if gotCreds.AK != "ctx-ak" || gotCreds.SK != "ctx-sk" || gotCreds.ProjectID != "ctx-proj" || gotCreds.SecurityToken != "ctx-tok" {
-		t.Fatalf("handler should pass context creds: %+v", gotCreds)
+	if gotCreds.AK != "sec-ak" || gotCreds.SK != "sec-sk" || gotCreds.ProjectID != "ctx-proj" || gotCreds.SecurityToken != "sec-tok" {
+		t.Fatalf("handler should use security (agency) creds: %+v", gotCreds)
+	}
+}
+
+func TestCtxCreds_LegacyFallback(t *testing.T) {
+	// No security creds → fall back to legacy ak/sk with no token.
+	got := ctxCreds(fakeCtx{ak: "legacy-ak", sk: "legacy-sk", projectID: "p"})
+	if got.AK != "legacy-ak" || got.SK != "legacy-sk" || got.ProjectID != "p" || got.SecurityToken != "" {
+		t.Fatalf("legacy fallback wrong: %+v", got)
 	}
 }
 

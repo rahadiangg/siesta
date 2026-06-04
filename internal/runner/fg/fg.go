@@ -31,13 +31,7 @@ func Serve(getenv config.Getenv) {
 func makeHandler(getenv config.Getenv) func([]byte, fgcontext.RuntimeContext) (any, error) {
 	return func(payload []byte, ctx fgcontext.RuntimeContext) (any, error) {
 		log := ctx.GetLogger().Logf
-		ctxCreds := scaler.Creds{
-			AK:            ctx.GetAccessKey(),
-			SK:            ctx.GetSecretKey(),
-			ProjectID:     ctx.GetProjectID(),
-			SecurityToken: ctx.GetSecurityToken(),
-		}
-		res, err := handle(context.Background(), payload, getenv, ctxCreds)
+		res, err := handle(context.Background(), payload, getenv, ctxCreds(ctx))
 		if err != nil {
 			log("siesta: error: %v", err)
 			// Must return a non-nil value: the runtime treats nil as the error
@@ -48,6 +42,19 @@ func makeHandler(getenv config.Getenv) func([]byte, fgcontext.RuntimeContext) (a
 			res.Provider, res.NodePoolID, res.Previous, res.Desired, res.Changed, res.DryRun)
 		return res, nil
 	}
+}
+
+// ctxCreds extracts credentials from the FunctionGraph request context. When an
+// agency is configured, FG provides temporary credentials as a matched triple via
+// the "security" getters (the preferred, non-deprecated path). The legacy
+// GetAccessKey/GetSecretKey getters are a fallback and carry no token, so they
+// must not be mixed with the security token.
+func ctxCreds(ctx fgcontext.RuntimeContext) scaler.Creds {
+	ak, sk, token := ctx.GetSecurityAccessKey(), ctx.GetSecuritySecretKey(), ctx.GetSecurityToken()
+	if ak == "" {
+		ak, sk, token = ctx.GetAccessKey(), ctx.GetSecretKey(), ""
+	}
+	return scaler.Creds{AK: ak, SK: sk, ProjectID: ctx.GetProjectID(), SecurityToken: token}
 }
 
 // handle is the pure, testable core: parse the timer event, build the request,
